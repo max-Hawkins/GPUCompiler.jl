@@ -520,22 +520,6 @@ function lower_byval(@nospecialize(job::CompilerJob), mod::LLVM.Module, f::LLVM.
     unsafe_delete!(mod, f)
     LLVM.name!(new_f, fn)
 
-    # clean-up
-    # NOTE: byval lowering happens very late, after optimization
-    ModulePassManager() do pm
-        # fold the entry bb into the rest of the function
-        instruction_simplify!(pm)
-        cfgsimplification!(pm)
-
-        # avoid alloca's
-        scalar_repl_aggregates!(pm)
-        instruction_combining!(pm)
-
-        cfgsimplification!(pm)
-
-        run!(pm, mod)
-    end
-
     return new_f
 end
 
@@ -616,9 +600,10 @@ function add_kernel_state!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
             return val
         end
 
-        # NOTE: we need global changes because LLVM 12 wants to clone debug metadata
+        # we don't want module-level changes, because otherwise LLVM will clone metadata,
+        # resulting in mismatching references between `!dbg` metadata and `dbg` instructions
         clone_into!(new_f, f; value_map, materializer,
-                    changes=LLVM.API.LLVMCloneFunctionChangeTypeGlobalChanges)
+                    changes=LLVM.API.LLVMCloneFunctionChangeTypeLocalChangesOnly)
 
         # we can't remove this function yet, as we might still need to rewrite any called,
         # but remove the IR already
