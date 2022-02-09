@@ -71,19 +71,83 @@ function finish_module!(@nospecialize(job::CompilerJob{MetalCompilerTarget}), mo
         # TESTING: Adding llvm.module.flags
         # wchar_size = 4
         # wchar_key = "wchar_size"
-        # wchar_md = Metadata[]
-        # push!(wchar_md, Metadata(ConstantInt(Int32(1); ctx)))
-        # push!(wchar_md, MDString("wchar_size"; ctx))
-        # push!(wchar_md, Metadata(ConstantInt(Int32(4); ctx)))
-        # wchar_md = MDNode(wchar_md; ctx)
+        wchar_md = Metadata[]
+        push!(wchar_md, Metadata(ConstantInt(Int32(1); ctx)))
+        push!(wchar_md, MDString("wchar_size"; ctx))
+        push!(wchar_md, Metadata(ConstantInt(Int32(4); ctx)))
+        wchar_md = MDNode(wchar_md; ctx)
+        push!(metadata(mod)["llvm.module.flags"], wchar_md)
+
         # LLVM.API.LLVMAddModuleFlag(mod, LLVM.API.LLVMModuleFlagBehavior(1), 
         #         Cstring(pointer(wchar_key)), Csize_t(length(wchar_key)),
         #         wchar_md)
+
+        # !4 = !{i32 7, !"air.max_device_buffers", i32 31}
+        max_buff = Metadata[]
+        max_buff_key = "air.max_device_buffers"
+        push!(max_buff, Metadata(ConstantInt(Int32(7); ctx)))
+        push!(max_buff, MDString("air.max_device_buffers"; ctx))
+        push!(max_buff, Metadata(ConstantInt(Int32(31); ctx)))
+        max_buff = MDNode(max_buff; ctx)
+        push!(metadata(mod)["llvm.module.flags"], max_buff)
+
+        # LLVM.API.LLVMAddModuleFlag(mod, LLVM.API.LLVMModuleFlagBehavior(7), 
+        #         Cstring(pointer(max_buff_key)), Csize_t(length(max_buff_key)),
+        #         max_buff)
+
+        # !5 = !{i32 7, !"air.max_constant_buffers", i32 31}
+        max_const_buff_md = Metadata[]
+        push!(max_const_buff_md, Metadata(ConstantInt(Int32(7); ctx)))
+        push!(max_const_buff_md, MDString("air.max_constant_buffers"; ctx))
+        push!(max_const_buff_md, Metadata(ConstantInt(Int32(31); ctx)))
+        max_const_buff_md = MDNode(max_const_buff_md; ctx)
+        push!(metadata(mod)["llvm.module.flags"], max_const_buff_md)
+
+        # !6 = !{i32 7, !"air.max_threadgroup_buffers", i32 31}
+        max_threadgroup_buff_md = Metadata[]
+        push!(max_threadgroup_buff_md, Metadata(ConstantInt(Int32(7); ctx)))
+        push!(max_threadgroup_buff_md, MDString("air.max_threadgroup_buffers"; ctx))
+        push!(max_threadgroup_buff_md, Metadata(ConstantInt(Int32(31); ctx)))
+        max_threadgroup_buff_md = MDNode(max_threadgroup_buff_md; ctx)
+        push!(metadata(mod)["llvm.module.flags"], max_threadgroup_buff_md)
+
+        # !7 = !{i32 7, !"air.max_textures", i32 128}
+        max_textures_md = Metadata[]
+        push!(max_textures_md, Metadata(ConstantInt(Int32(7); ctx)))
+        push!(max_textures_md, MDString("air.max_textures"; ctx))
+        push!(max_textures_md, Metadata(ConstantInt(Int32(128); ctx)))
+        max_textures_md = MDNode(max_textures_md; ctx)
+        push!(metadata(mod)["llvm.module.flags"], max_textures_md)
+
+        # !8 = !{i32 7, !"air.max_read_write_textures", i32 8}
+        max_rw_textures_md = Metadata[]
+        push!(max_rw_textures_md, Metadata(ConstantInt(Int32(7); ctx)))
+        push!(max_rw_textures_md, MDString("air.max_read_write_textures"; ctx))
+        push!(max_rw_textures_md, Metadata(ConstantInt(Int32(8); ctx)))
+        max_rw_textures_md = MDNode(max_rw_textures_md; ctx)
+        push!(metadata(mod)["llvm.module.flags"], max_rw_textures_md)
+
+        # !9 = !{i32 7, !"air.max_samplers", i32 16}
+        max_samplers_md = Metadata[]
+        push!(max_samplers_md, Metadata(ConstantInt(Int32(7); ctx)))
+        push!(max_samplers_md, MDString("air.max_samplers"; ctx))
+        push!(max_samplers_md, Metadata(ConstantInt(Int32(16); ctx)))
+        max_samplers_md = MDNode(max_samplers_md; ctx)
+        push!(metadata(mod)["llvm.module.flags"], max_samplers_md)
 
 
         # function LLVMAddModuleFlag(M, Behavior, Key, KeyLen, Val)
         #     ccall((:LLVMAddModuleFlag, libllvm[]), Cvoid, (LLVMModuleRef, LLVMModuleFlagBehavior, Cstring, Csize_t, LLVMMetadataRef), M, Behavior, Key, KeyLen, Val)
         # end
+
+        # Add llvm.ident
+        # !llvm.ident = !{!10}
+        # !10 = !{!"Apple metal version 31001.363 (metalfe-31001.363)"}
+        llvm_ident_md = Metadata[]
+        push!(llvm_ident_md, MDString("Apple metal version 31001.363 (metalfe-31001.363)"; ctx))
+        llvm_ident_md = MDNode(llvm_ident_md; ctx)
+        push!(metadata(mod)["llvm.ident"], llvm_ident_md)
+
 
         # Add air version metadata
         air_md = Metadata[]
@@ -92,6 +156,16 @@ function finish_module!(@nospecialize(job::CompilerJob{MetalCompilerTarget}), mo
         push!(air_md, Metadata(ConstantInt(Int32(0); ctx)))
         air_md = MDNode(air_md; ctx)
         push!(metadata(mod)["air.version"], air_md)
+
+        # !air.language_version = !{!12}
+        # !12 = !{!"Metal", i32 2, i32 4, i32 0}
+        air_lang_md = Metadata[]
+        push!(air_lang_md, MDString("Metal"; ctx))
+        push!(air_lang_md, Metadata(ConstantInt(Int32(2); ctx)))
+        push!(air_lang_md, Metadata(ConstantInt(Int32(4); ctx)))
+        push!(air_lang_md, Metadata(ConstantInt(Int32(0); ctx)))
+        air_lang_md = MDNode(air_lang_md; ctx)
+        push!(metadata(mod)["air.language_version"], air_lang_md)
 
     end
 
@@ -278,14 +352,41 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         unsafe_delete!(mod, intr)
     end
 
-    # add metadata
-    # Do this for regular arguments in Metal.jl somehow??? Seems odd to fit it in here
-    # Create metadata for argument buffer holding MtlDeviceArray
-    # TODO: Check for duplicated argument buffer struct_type_info? Is this worth it?
-    function process_arg(arg_infos, ty, i)
+    ### add metadata
+
+    # Add metadata for a simple buffer holding a MtlBuffer
+    function process_buf_simple(arg_infos, ty, i)
         arg_names = ["A", "B", "C"]
         arg_info = Metadata[]
-        @info "In process arg: " i ty
+        @info "In process simple buffer: " i ty
+        # Ex:
+        # !{i32 0, !"air.buffer", !"air.location_index", i32 0, i32 1, !"air.read", !"air.arg_type_size", i32 4, !"air.arg_type_align_size", i32 4, !"air.arg_type_name", !"float", !"air.arg_name", !"inA"}
+
+        push!(arg_info, Metadata(ConstantInt(Int32(i-1); ctx))) # Argument index
+        push!(arg_info, MDString("air.buffer"; ctx))
+        push!(arg_info, MDString("air.location_index"; ctx))
+        push!(arg_info, Metadata(ConstantInt(Int32(i-1); ctx))) # Argument index again?
+        push!(arg_info, Metadata(ConstantInt(Int32(1); ctx))) # Address space TODO: Check and get properly
+        push!(arg_info, MDString("air.read_write"; ctx)) # TODO: Check for const array
+        push!(arg_info, MDString("air.arg_type_size"; ctx))
+        push!(arg_info, Metadata(ConstantInt(Int32(4); ctx))) # TODO: Get properly
+        push!(arg_info, MDString("air.arg_type_align_size"; ctx))
+        push!(arg_info, Metadata(ConstantInt(Int32(4); ctx))) # TODO: Get properly Base.datatype_alignment(T)?
+        push!(arg_info, MDString("air.arg_type_name"; ctx))
+        push!(arg_info, MDString("float"; ctx)) # TODO: Get properly
+        push!(arg_info, MDString("air.arg_name"; ctx))
+        push!(arg_info, MDString(arg_names[i]; ctx))
+
+        arg_info = MDNode(arg_info; ctx)
+        push!(arg_infos, arg_info)
+    end
+
+    # Create metadata for argument buffer holding MtlDeviceArray
+    # TODO: Check for duplicated argument buffer struct_type_info? Is this worth it?
+    function process_buf_arg(arg_infos, ty, i)
+        arg_names = ["A", "B", "C"]
+        arg_info = Metadata[]
+        @info "In process arg buffer: " i ty
         #=
         struct MtlDeviceArray{T,N,A} <: AbstractArray{T,N}
             shape::Dims{N} => N x Int64
@@ -387,7 +488,17 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
     arg_infos = Metadata[]
     # Regular arguments first
     for (i, arg_type) in enumerate(job.source.tt.parameters)
-        process_arg(arg_infos, arg_type, i)
+        @info "Arg $i of type $arg_type ---"
+        if arg_type.name.name == :MtlDeviceArray
+            # Process argument buffer holding MtlDeviceArray
+            process_buf_arg(arg_infos, arg_type, i)
+        else#if arg_type.name.name in (:LLVMPtr, :MtlBuffer)
+            # Process simple buffer holding MtlBuffer
+            process_buf_simple(arg_infos, arg_type, i)
+        # else
+        #     error("Invalid argument type of $arg_type at argument index $i. Should be MtlDeviceArray or MtlBuffer")
+        end
+        
     end
     # Intrinsics last
     for (i, intr_fn) in enumerate(used_intrinsics)
