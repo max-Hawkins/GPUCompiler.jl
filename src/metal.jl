@@ -269,7 +269,7 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         # we don't want module-level changes, because otherwise LLVM will clone metadata,
         # resulting in mismatching references between `!dbg` metadata and `dbg` instructions        
         clone_into!(new_f, f; value_map, materializer,
-                    changes=LLVM.API.LLVMCloneFunctionChangeTypeLocalChangesOnly)
+                    changes=LLVM.API.LLVMCloneFunctionChangeTypeGlobalChanges) #  LLVMCloneFunctionChangeTypeLocalChangesOnly
 
         # we can't remove this function yet, as we might still need to rewrite any called,
         # but remove the IR already
@@ -293,8 +293,8 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         Builder(ctx) do builder
             for use in uses(f)
                 val = user(use)
-                callee_f = LLVM.parent(LLVM.parent(val))
                 if val isa LLVM.CallInst || val isa LLVM.InvokeInst || val isa LLVM.CallBrInst
+                    callee_f = LLVM.parent(LLVM.parent(val))
                     # forward the arguments
                     position!(builder, val)
                     new_val = if val isa LLVM.CallInst
