@@ -335,22 +335,32 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
     end
 
     # replace uses of the intrinsics with references to the input arguments
-    for (i, intr_fn) in enumerate(used_intrinsics)
-        intr = functions(mod)[intr_fn]
-        for use in uses(intr)
-            val = user(use)
-            callee_f = LLVM.parent(LLVM.parent(val))
-            if val isa LLVM.CallInst || val isa LLVM.InvokeInst || val isa LLVM.CallBrInst
-                replace_uses!(val, parameters(callee_f)[end-nargs+i])
-            else
-                error("Cannot rewrite unknown use of function: $val")
-            end
+    # and increment values to counteract the C-indexing conversion decrementing
+    # i.e. increment these values since they don't need to be incremented because
+    # the values are originating in 0-indexing land
+    # TODO: Is there a better way to do this?
+    Builder(ctx) do builder
+        for (i, intr_fn) in enumerate(used_intrinsics)
+            intr = functions(mod)[intr_fn]
+            for use in uses(intr)
+                val = user(use)
+                callee_f = LLVM.parent(LLVM.parent(val))
+                if val isa LLVM.CallInst || val isa LLVM.InvokeInst || val isa LLVM.CallBrInst
+                    position!(builder, val)
+                    # create new_val thats an add i32 name(parameters(callee_f)[end-nargs+i]), 1
+                    # then put that as second arg to replace with
+                    new_val = add!(builder, parameters(callee_f)[end-nargs+i], ConstantInt(LLVM.Int32Type(ctx), 1))
+                    replace_uses!(val, new_val)
+                else
+                    error("Cannot rewrite unknown use of function: $val")
+                end
 
-            @assert isempty(uses(val))
-            unsafe_delete!(LLVM.parent(val), val)
+                @assert isempty(uses(val))
+                unsafe_delete!(LLVM.parent(val), val)
+            end
+            @assert isempty(uses(intr))
+            unsafe_delete!(mod, intr)
         end
-        @assert isempty(uses(intr))
-        unsafe_delete!(mod, intr)
     end
 
     ### add metadata
