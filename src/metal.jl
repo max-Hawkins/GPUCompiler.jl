@@ -5,7 +5,7 @@
 export MetalCompilerTarget
 
 Base.@kwdef struct MetalCompilerTarget <: AbstractCompilerTarget
-    macos::VersionNumber=v"12.1.0"
+    macos::VersionNumber
 end
 
 function Base.hash(target::MetalCompilerTarget, h::UInt)
