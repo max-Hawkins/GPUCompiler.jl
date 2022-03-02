@@ -119,6 +119,14 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
 
     # add the arguments to every function
     worklist = filter(!isdeclaration, collect(functions(mod)))
+    worklist = filter(worklist) do f
+        # HACK: don't add input arguments to specific runtime functions that
+        #       we might later introduce new references to (without then
+        #       knowing about the input arguments). this only happens with
+        #       gpu_gc_pool_alloc, which is currently special-cased for
+        #       kernel state lowering (which has the same issue).
+        LLVM.name(f) != "gpu_gc_pool_alloc"
+    end
     workmap = Dict{LLVM.Function, LLVM.Function}()
     for f in worklist
         fn = LLVM.name(f)
