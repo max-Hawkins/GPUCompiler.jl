@@ -152,8 +152,8 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         workmap[f] = new_f
     end
 
-    # clone and the function bodies.
-    # we don't need to rewrite anything as the arguments are added last.
+    # clone and rewrite the function bodies.
+    # we don't need to rewrite much as the arguments are added last.
     for (f, new_f) in workmap
         # use a value mapper for rewriting function arguments
         value_map = Dict{LLVM.Value, LLVM.Value}()
@@ -164,10 +164,17 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
 
         # use a value materializer for replacing uses of the function in constants
         function materializer(val)
-            if val isa LLVM.ConstantExpr && opcode(val) == LLVM.API.LLVMPtrToInt
+            opcodes = (LLVM.API.LLVMPtrToInt, LLVM.API.LLVMAddrSpaceCast, LLVM.API.LLVMBitCast)
+            if val isa LLVM.ConstantExpr && opcode(val) in opcodes
                 src = operands(val)[1]
                 if haskey(workmap, src)
-                    return LLVM.const_ptrtoint(workmap[src], llvmtype(val))
+                    return if opcode(val) == LLVM.API.LLVMPtrToInt
+                        LLVM.const_ptrtoint(workmap[src], llvmtype(val))
+                    elseif opcode(val) == LLVM.API.LLVMAddrSpaceCast
+                        LLVM.const_addrspacecast(workmap[src], llvmtype(val))
+                    elseif opcode(val) == LLVM.API.LLVMBitCast
+                        LLVM.const_bitcast(workmap[src], llvmtype(val))
+                    end
                 end
             end
             return val
