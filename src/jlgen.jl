@@ -166,7 +166,8 @@ end
 
 ## interpreter
 
-using Core.Compiler: AbstractInterpreter, InferenceResult, InferenceParams, InferenceState, OptimizationParams
+using Core.Compiler:
+    AbstractInterpreter, InferenceResult, InferenceParams, InferenceState, OptimizationParams
 
 struct GPUInterpreter <: AbstractInterpreter
     global_cache::CodeCache
@@ -219,13 +220,14 @@ end
 Core.Compiler.may_optimize(interp::GPUInterpreter) = true
 Core.Compiler.may_compress(interp::GPUInterpreter) = true
 Core.Compiler.may_discard_trees(interp::GPUInterpreter) = true
-if VERSION >= v"1.7.0-DEV.577"
+@static if VERSION >= v"1.7.0-DEV.577"
 Core.Compiler.verbose_stmt_info(interp::GPUInterpreter) = false
 end
 
-if isdefined(Base.Experimental, Symbol("@overlay"))
+@static if isdefined(Base.Experimental, Symbol("@overlay"))
+using Core.Compiler: OverlayMethodTable
 Core.Compiler.method_table(interp::GPUInterpreter, sv::InferenceState) =
-    Core.Compiler.OverlayMethodTable(interp.world, interp.method_table)
+    OverlayMethodTable(interp.world, interp.method_table)
 else
 Core.Compiler.method_table(interp::GPUInterpreter, sv::InferenceState) =
     WorldOverlayMethodTable(interp.world)

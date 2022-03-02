@@ -5,7 +5,11 @@
 export MetalCompilerTarget
 
 Base.@kwdef struct MetalCompilerTarget <: AbstractCompilerTarget
+<<<<<<< HEAD
     macos::VersionNumber
+=======
+    macos::VersionNumber=v"12.0.0"
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
 end
 
 function Base.hash(target::MetalCompilerTarget, h::UInt)
@@ -40,7 +44,11 @@ runtime_slug(job::CompilerJob{MetalCompilerTarget}) = "metal-macos$(job.target.m
 function process_module!(job::CompilerJob{MetalCompilerTarget}, mod::LLVM.Module)
     # calling convention
     for f in functions(mod)
+<<<<<<< HEAD
         #callconv!(f, #=LLVM.API.LLVMMETALFUNCCallConv=# LLVM.API.LLVMCallConv(102))
+=======
+        #callconv!(f, #=LLVM.API.LLVMMetalFUNCCallConv=# LLVM.API.LLVMCallConv(102))
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
         # XXX: this makes InstCombine erase kernel->func calls.
         #      do we even need this? why?
     end
@@ -51,8 +59,12 @@ function process_entry!(job::CompilerJob{MetalCompilerTarget}, mod::LLVM.Module,
 
     if job.source.kernel
         # calling convention
+<<<<<<< HEAD
         callconv!(entry, LLVM.API.LLVMMETALKERNELCallConv #=LLVM.API.LLVMCallConv(103)=#)
         # TODO: Fix argument types here??
+=======
+        callconv!(entry, #=LLVM.API.LLVMMetalKERNELCallConv=# LLVM.API.LLVMCallConv(103))
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
     end
 
     return entry
@@ -67,6 +79,7 @@ function finish_module!(@nospecialize(job::CompilerJob{MetalCompilerTarget}), mo
 
     if job.source.kernel
         add_input_arguments!(job, mod, entry)
+<<<<<<< HEAD
 
         # TESTING: Adding llvm.module.flags
         # wchar_size = 4
@@ -167,6 +180,8 @@ function finish_module!(@nospecialize(job::CompilerJob{MetalCompilerTarget}), mo
         air_lang_md = MDNode(air_lang_md; ctx)
         push!(metadata(mod)["air.language_version"], air_lang_md)
 
+=======
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
     end
 
     return functions(mod)[entry_fn]
@@ -220,6 +235,17 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
 
     # add the arguments to every function
     worklist = filter(!isdeclaration, collect(functions(mod)))
+<<<<<<< HEAD
+=======
+    worklist = filter(worklist) do f
+        # HACK: don't add input arguments to specific runtime functions that
+        #       we might later introduce new references to (without then
+        #       knowing about the input arguments). this only happens with
+        #       gpu_gc_pool_alloc, which is currently special-cased for
+        #       kernel state lowering (which has the same issue).
+        LLVM.name(f) != "gpu_gc_pool_alloc"
+    end
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
     workmap = Dict{LLVM.Function, LLVM.Function}()
     for f in worklist
         fn = LLVM.name(f)
@@ -245,8 +271,13 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         workmap[f] = new_f
     end
 
+<<<<<<< HEAD
     # clone and the function bodies.
     # we don't need to rewrite anything as the arguments are added last.
+=======
+    # clone and rewrite the function bodies.
+    # we don't need to rewrite much as the arguments are added last.
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
     for (f, new_f) in workmap
         # use a value mapper for rewriting function arguments
         value_map = Dict{LLVM.Value, LLVM.Value}()
@@ -257,19 +288,39 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
 
         # use a value materializer for replacing uses of the function in constants
         function materializer(val)
+<<<<<<< HEAD
             if val isa LLVM.ConstantExpr && opcode(val) == LLVM.API.LLVMPtrToInt
                 src = operands(val)[1]
                 if haskey(workmap, src)
                     return LLVM.const_ptrtoint(workmap[src], llvmtype(val))
+=======
+            opcodes = (LLVM.API.LLVMPtrToInt, LLVM.API.LLVMAddrSpaceCast, LLVM.API.LLVMBitCast)
+            if val isa LLVM.ConstantExpr && opcode(val) in opcodes
+                src = operands(val)[1]
+                if haskey(workmap, src)
+                    return if opcode(val) == LLVM.API.LLVMPtrToInt
+                        LLVM.const_ptrtoint(workmap[src], llvmtype(val))
+                    elseif opcode(val) == LLVM.API.LLVMAddrSpaceCast
+                        LLVM.const_addrspacecast(workmap[src], llvmtype(val))
+                    elseif opcode(val) == LLVM.API.LLVMBitCast
+                        LLVM.const_bitcast(workmap[src], llvmtype(val))
+                    end
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
                 end
             end
             return val
         end
 
+<<<<<<< HEAD
         # we don't want module-level changes, because otherwise LLVM will clone metadata,
         # resulting in mismatching references between `!dbg` metadata and `dbg` instructions        
         clone_into!(new_f, f; value_map, materializer,
                     changes=LLVM.API.LLVMCloneFunctionChangeTypeGlobalChanges) #  LLVMCloneFunctionChangeTypeLocalChangesOnly
+=======
+        # NOTE: we need global changes because LLVM 12 wants to clone debug metadata
+        clone_into!(new_f, f; value_map, materializer,
+                    changes=LLVM.API.LLVMCloneFunctionChangeTypeGlobalChanges)
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
 
         # we can't remove this function yet, as we might still need to rewrite any called,
         # but remove the IR already
@@ -293,8 +344,13 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         Builder(ctx) do builder
             for use in uses(f)
                 val = user(use)
+<<<<<<< HEAD
                 if val isa LLVM.CallInst || val isa LLVM.InvokeInst || val isa LLVM.CallBrInst
                     callee_f = LLVM.parent(LLVM.parent(val))
+=======
+                callee_f = LLVM.parent(LLVM.parent(val))
+                if val isa LLVM.CallInst || val isa LLVM.InvokeInst || val isa LLVM.CallBrInst
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
                     # forward the arguments
                     position!(builder, val)
                     new_val = if val isa LLVM.CallInst
@@ -335,6 +391,7 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
     end
 
     # replace uses of the intrinsics with references to the input arguments
+<<<<<<< HEAD
     # and increment values to counteract the C-indexing conversion decrementing
     # i.e. increment these values since they don't need to be incremented because
     # the values are originating in 0-indexing land
@@ -518,6 +575,34 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         push!(arg_info, Metadata(ConstantInt(Int32(length(parameters(entry))-i); ctx)))
         # TODO: Remove .uint from the intrinsic names
         push!(arg_info, MDString("air." * kernel_intrinsics[intr_fn].air_intr[1:end-5]; ctx))
+=======
+    for (i, intr_fn) in enumerate(used_intrinsics)
+        intr = functions(mod)[intr_fn]
+        for use in uses(intr)
+            val = user(use)
+            callee_f = LLVM.parent(LLVM.parent(val))
+            if val isa LLVM.CallInst || val isa LLVM.InvokeInst || val isa LLVM.CallBrInst
+                replace_uses!(val, parameters(callee_f)[end-nargs+i])
+            else
+                error("Cannot rewrite unknown use of function: $val")
+            end
+
+            @assert isempty(uses(val))
+            unsafe_delete!(LLVM.parent(val), val)
+        end
+        @assert isempty(uses(intr))
+        unsafe_delete!(mod, intr)
+    end
+
+    # add metadata
+    entry = functions(mod)[entry_fn]
+    ## argument info
+    arg_infos = Metadata[]
+    for (i, intr_fn) in enumerate(used_intrinsics)
+        arg_info = Metadata[]
+        push!(arg_info, Metadata(ConstantInt(Int32(length(parameters(entry))-i); ctx)))
+        push!(arg_info, MDString(kernel_intrinsics[intr_fn].air_intr; ctx))
+>>>>>>> 36cc32fb834d698d762f85a57b3726f37417ce5e
         push!(arg_info, MDString("air.arg_type_name"; ctx))
         push!(arg_info, MDString(kernel_intrinsics[intr_fn].air_typ; ctx))
         push!(arg_info, MDString("air.arg_name"; ctx))
