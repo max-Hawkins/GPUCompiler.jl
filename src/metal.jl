@@ -220,13 +220,14 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
 
     # add the arguments to every function
     worklist = filter(!isdeclaration, collect(functions(mod)))
+    invalid_names = ["gpu_gc_pool_alloc", "gpu_malloc", "gpu_report_oom", "gpu_report_exception", "gpu_signal_exception"]
     worklist = filter(worklist) do f
         # HACK: don't add input arguments to specific runtime functions that
         #       we might later introduce new references to (without then
         #       knowing about the input arguments). this only happens with
-        #       gpu_gc_pool_alloc, which is currently special-cased for
+        #       a few functions that are currently special-cased for
         #       kernel state lowering (which has the same issue).
-        LLVM.name(f) != "gpu_gc_pool_alloc"
+        !(LLVM.name(f) in invalid_names)
     end
     workmap = Dict{LLVM.Function, LLVM.Function}()
     for f in worklist
@@ -312,7 +313,16 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
                     # forward the arguments
                     position!(builder, val)
                     new_val = if val isa LLVM.CallInst
-                        call!(builder, new_f, [arguments(val)..., parameters(callee_f)[end-nargs+1:end]...], operand_bundles(val))
+                        # HACK continuation
+                        if LLVM.name(callee_f) == "gpu_gc_pool_alloc"
+                            @show f
+                            @show new_f
+                            @show parameters(callee_f)
+                            @show operand_bundles(val)
+                            call!(builder, new_f, [arguments(val)..., parameters(callee_f)...], operand_bundles(val))
+                        else 
+                            call!(builder, new_f, [arguments(val)..., parameters(callee_f)[end-nargs+1:end]...], operand_bundles(val))
+                        end
                     else
                         # TODO: invoke and callbr
                         error("Rewrite of $(typeof(val))-based calls is not implemented: $val")
@@ -381,7 +391,8 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
 
     # Add metadata for a simple buffer holding a MtlBuffer
     function process_buf_simple(arg_infos, ty, i)
-        arg_names = ["A", "B", "C"]
+        # arg_names = ["A", "B", "C"]
+        arg_name_synth = "arg_$i"
         arg_info = Metadata[]
         @info "In process simple buffer: " i ty
         # Ex:
@@ -400,7 +411,7 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         push!(arg_info, MDString("air.arg_type_name"; ctx))
         push!(arg_info, MDString("float"; ctx)) # TODO: Get properly
         push!(arg_info, MDString("air.arg_name"; ctx))
-        push!(arg_info, MDString(arg_names[i]; ctx))
+        push!(arg_info, MDString(arg_name_synth; ctx))
 
         arg_info = MDNode(arg_info; ctx)
         push!(arg_infos, arg_info)
@@ -409,7 +420,9 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
     # Create metadata for argument buffer holding MtlDeviceArray
     # TODO: Check for duplicated argument buffer struct_type_info? Is this worth it?
     function process_buf_arg(arg_infos, ty, i)
+        @show entry
         arg_names = ["A", "B", "C"]
+        arg_name_synth = "arg_$i"
         arg_info = Metadata[]
         @info "In process arg buffer: " i ty
         #=
@@ -498,7 +511,7 @@ function add_input_arguments!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         push!(arg_info, MDString("air.arg_type_name"; ctx))
         push!(arg_info, MDString("MtlDeviceArray"; ctx)) # TODO: Figure out what to put here. Does it matter?
         push!(arg_info, MDString("air.arg_name"; ctx))
-        push!(arg_info, MDString(arg_names[i]; ctx)) # TODO: How to get this? Does the compiler job have it somewhere?
+        push!(arg_info, MDString(arg_name_synth; ctx)) # TODO: How to get this? Does the compiler job have it somewhere?
         # Ignore unused flag for now
     
         arg_info = MDNode(arg_info; ctx)
