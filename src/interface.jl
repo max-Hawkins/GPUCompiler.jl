@@ -174,6 +174,9 @@ process_module!(@nospecialize(job::CompilerJob), mod::LLVM.Module) = return
 # state (possibly indirectly) via the `kernel_state_pointer` function.
 kernel_state_type(@nospecialize(job::CompilerJob)) = Nothing
 
+# Does the target need to pass kernel arguments by value?
+needs_byval(target::AbstractCompilerTarget) = true
+
 # early processing of the newly identified LLVM kernel function
 function process_entry!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
                         entry::LLVM.Function)
@@ -184,7 +187,7 @@ function process_entry!(@nospecialize(job::CompilerJob), mod::LLVM.Module,
         # (this improves performance, and is mandated by certain back-ends like SPIR-V).
         args = classify_arguments(job, eltype(llvmtype(entry)))
         for arg in args
-            if arg.cc == BITS_REF
+            if arg.cc == BITS_REF && needs_byval(job)
                 attr = if LLVM.version() >= v"12"
                     TypeAttribute("byval", eltype(arg.codegen.typ); ctx)
                 else
